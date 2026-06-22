@@ -2102,10 +2102,7 @@ async def admin_upload_avatar_image(
 
             shutil.copyfileobj(image.file, buffer)
 
-        image_url = (
-            f"http://127.0.0.1:8000/"
-            f"manga/avatars/{file_name}"
-        )
+            image_url = f"/manga/avatars/{file_name}"
 
         avatar.image_url = image_url
 
@@ -2598,35 +2595,75 @@ def finish_chapter_and_unlock_rewards(user_id: int, chapter_number: int):
             .all()
         )
 
+        reward_avatars = (
+            db.query(AvatarItem)
+            .filter(AvatarItem.is_active == True)
+            .filter(AvatarItem.unlock_type == "chapter_finish")
+            .filter(AvatarItem.unlock_key == unlock_key)
+            .all()
+        )
+
         unlocked_outfits = []
+
+        unlocked_avatars = []
 
         for outfit in reward_outfits:
 
-            existing_unlock = (
+            existing_outfit_unlock = (
                 db.query(UserOutfitUnlock)
                 .filter(UserOutfitUnlock.user_id == user.id)
                 .filter(UserOutfitUnlock.outfit_id == outfit.id)
                 .first()
             )
 
-            if existing_unlock:
-
+            if existing_outfit_unlock:
                 continue
 
-            new_unlock = UserOutfitUnlock(
+            new_outfit_unlock = UserOutfitUnlock(
                 user_id=user.id,
                 outfit_id=outfit.id,
                 is_equipped=False
             )
 
-            db.add(new_unlock)
+            db.add(new_outfit_unlock)
 
             unlocked_outfits.append({
                 "id": outfit.id,
                 "name": outfit.name,
                 "description": outfit.description,
+                "image_url": outfit.image_url,
                 "rarity": outfit.rarity,
                 "outfit_type": outfit.outfit_type
+            })
+
+        for avatar in reward_avatars:
+
+            existing_avatar_unlock = (
+                db.query(UserAvatarUnlock)
+                .filter(UserAvatarUnlock.user_id == user.id)
+                .filter(UserAvatarUnlock.avatar_id == avatar.id)
+                .first()
+            )
+
+            if existing_avatar_unlock:
+                continue
+
+            new_avatar_unlock = UserAvatarUnlock(
+                user_id=user.id,
+                avatar_id=avatar.id
+            )
+
+            db.add(new_avatar_unlock)
+
+            unlocked_avatars.append({
+                "id": avatar.id,
+                "name": avatar.name,
+                "description": avatar.description,
+                "image_url": avatar.image_url,
+                "rarity": avatar.rarity,
+                "source_type": avatar.source_type,
+                "unlock_type": avatar.unlock_type,
+                "unlock_key": avatar.unlock_key
             })
 
         db.commit()
@@ -2635,7 +2672,8 @@ def finish_chapter_and_unlock_rewards(user_id: int, chapter_number: int):
             "success": True,
             "message": "Capítulo finalizado e recompensas verificadas",
             "chapter": chapter_number,
-            "unlocked_outfits": unlocked_outfits
+            "unlocked_outfits": unlocked_outfits,
+            "unlocked_avatars": unlocked_avatars
         }
 
     finally:
